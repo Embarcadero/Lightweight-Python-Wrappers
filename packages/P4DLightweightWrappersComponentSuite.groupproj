@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{912F8EE9-E25B-41C8-83B3-569531100FDE}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="P4DPyPackage.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="dclP4DPyPackage.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="P4DPyPackage">
+        <MSBuild Projects="P4DPyPackage.dproj"/>
+    </Target>
+    <Target Name="P4DPyPackage:Clean">
+        <MSBuild Projects="P4DPyPackage.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="P4DPyPackage:Make">
+        <MSBuild Projects="P4DPyPackage.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclP4DPyPackage">
+        <MSBuild Projects="dclP4DPyPackage.dproj"/>
+    </Target>
+    <Target Name="dclP4DPyPackage:Clean">
+        <MSBuild Projects="dclP4DPyPackage.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclP4DPyPackage:Make">
+        <MSBuild Projects="dclP4DPyPackage.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="P4DPyPackage;dclP4DPyPackage"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="P4DPyPackage:Clean;dclP4DPyPackage:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="P4DPyPackage:Make;dclP4DPyPackage:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

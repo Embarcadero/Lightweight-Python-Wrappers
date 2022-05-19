@@ -1,0 +1,73 @@
+package P4DPyPackage;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$LIBSUFFIX '280'}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  Python,
+  p4denvironment;
+
+contains
+  PyCommon in '..\src\PyCommon.pas',
+  PyModule in '..\src\PyModule.pas',
+  PyPackage in '..\src\PyPackage.pas',
+  PyExceptions in '..\src\PyExceptions.pas',
+  PyCore in '..\src\PyCore.pas',
+  PyUtils in '..\src\PyUtils.pas',
+  PyPackage.Manager.Pip in '..\src\Manager\PyPackage.Manager.Pip.pas',
+  PyPackage.Manager.Conda in '..\src\Manager\PyPackage.Manager.Conda.pas',
+  PyPackage.Manager.Defs.Conda in '..\src\Manager\Defs\PyPackage.Manager.Defs.Conda.pas',
+  PyPackage.Manager.Defs.Pip in '..\src\Manager\Defs\PyPackage.Manager.Defs.Pip.pas',
+  PyPackage.Manager.Defs in '..\src\Manager\Defs\PyPackage.Manager.Defs.pas',
+  PyPackage.Manager.Cmd.Intf in '..\src\Manager\Cmd\PyPackage.Manager.Cmd.Intf.pas',
+  PyPackage.Manager.ManagerKind in '..\src\Manager\PyPackage.Manager.ManagerKind.pas',
+  PyPackage.Manager.Intf in '..\src\Manager\PyPackage.Manager.Intf.pas',
+  PyPackage.Manager.Managers in '..\src\Manager\PyPackage.Manager.Managers.pas',
+  PyPackage.Manager in '..\src\Manager\PyPackage.Manager.pas',
+  PyPackage.Model in '..\src\Model\PyPackage.Model.pas',
+  PyPackage.Manager.Cmd.Conda.List in '..\src\Manager\Cmd\Conda\PyPackage.Manager.Cmd.Conda.List.pas',
+  PyPackage.Manager.Cmd.Conda.Uninstall in '..\src\Manager\Cmd\Conda\PyPackage.Manager.Cmd.Conda.Uninstall.pas',
+  PyPackage.Manager.Cmd.Conda.Install in '..\src\Manager\Cmd\Conda\PyPackage.Manager.Cmd.Conda.Install.pas',
+  PyPackage.Manager.Defs.Opts in '..\src\Manager\Defs\Opts\PyPackage.Manager.Defs.Opts.pas',
+  PyPackage.Manager.Defs.Opts.Pip.Install in '..\src\Manager\Defs\Opts\Pip\PyPackage.Manager.Defs.Opts.Pip.Install.pas',
+  PyPackage.Manager.Defs.Opts.Pip.Uninstall in '..\src\Manager\Defs\Opts\Pip\PyPackage.Manager.Defs.Opts.Pip.Uninstall.pas',
+  PyPackage.Manager.Defs.Opts.Conda.Create in '..\src\Manager\Defs\Opts\Conda\PyPackage.Manager.Defs.Opts.Conda.Create.pas',
+  PyPackage.Manager.Defs.Opts.Conda.Install in '..\src\Manager\Defs\Opts\Conda\PyPackage.Manager.Defs.Opts.Conda.Install.pas',
+  PyPackage.Manager.Defs.Opts.Conda.List in '..\src\Manager\Defs\Opts\Conda\PyPackage.Manager.Defs.Opts.Conda.List.pas',
+  PyPackage.Manager.Defs.Opts.Conda.Uninstall in '..\src\Manager\Defs\Opts\Conda\PyPackage.Manager.Defs.Opts.Conda.Uninstall.pas',
+  PyPackage.Manager.Cmd.Pip.Install in '..\src\Manager\Cmd\Pip\PyPackage.Manager.Cmd.Pip.Install.pas',
+  PyPackage.Manager.Cmd.Pip.Uninstall in '..\src\Manager\Cmd\Pip\PyPackage.Manager.Cmd.Pip.Uninstall.pas',
+  PyPackage.Manager.Cmd.Pip in '..\src\Manager\Cmd\Pip\PyPackage.Manager.Cmd.Pip.pas',
+  PyPackage.Manager.Cmd.Conda in '..\src\Manager\Cmd\Conda\PyPackage.Manager.Cmd.Conda.pas',
+  PyPackage.Manager.Cmd in '..\src\Manager\Cmd\PyPackage.Manager.Cmd.pas',
+  PyPackage.Manager.Cmd.Pip.List in '..\src\Manager\Cmd\Pip\PyPackage.Manager.Cmd.Pip.List.pas',
+  PyPackage.Manager.Defs.Opts.Pip.List in '..\src\Manager\Defs\Opts\Pip\PyPackage.Manager.Defs.Opts.Pip.List.pas';
+
+end.
