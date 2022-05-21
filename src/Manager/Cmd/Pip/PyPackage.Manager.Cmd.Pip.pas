@@ -103,7 +103,8 @@ begin
         + MakeInstallIndexUrlCmd()
         + MakeInstallExtraIndexUrlCmd()
         + MakeInstallNoIndexCmd()
-        + MakeInstallFindLinksCmd();
+        + MakeInstallFindLinksCmd()
+        + [Defs.PackageName + Defs.PackageVersion];
     finally
       Free();
     end;
@@ -143,7 +144,8 @@ begin
     try
       Result := TArray<string>.Create('uninstall')
         + MakeUninstallRequirementCmd()
-        + MakeUninstallConfirmationFlagCmd();
+        + MakeUninstallConfirmationFlagCmd()
+        + [Defs.PackageName];
     finally
       Free();
     end;

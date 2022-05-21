@@ -157,7 +157,7 @@ begin
              .Cmd(GetPythonEngine().ProgramName,
                TExecCmdArgs.BuildArgv(
                  GetPythonEngine().ProgramName,
-                 LIn + [FDefs.PackageName]),
+                 LIn),
                TExecCmdArgs.BuildEnvp(
                  GetPythonEngine().PythonHome,
                  GetPythonEngine().ProgramName,
@@ -181,7 +181,7 @@ begin
              .Cmd(GetPythonEngine().ProgramName,
                TExecCmdArgs.BuildArgv(
                  GetPythonEngine().ProgramName,
-                 LIn + [FDefs.PackageName]),
+                 LIn),
                TExecCmdArgs.BuildEnvp(
                  GetPythonEngine().PythonHome,
                  GetPythonEngine().ProgramName,
