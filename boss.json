@@ -1,0 +1,12 @@
+{
+	"name": "Lightweight-Python-Wrappers",
+	"description": "Lightweight Wrappers based on Python4Delphi to make it easy to import Python modules into Delphi components.",
+	"version": "1.0.0",
+	"homepage": "https://github.com/Embarcadero/Lightweight-Python-Wrappers",
+	"mainsrc": "./src",
+	"projects": [],
+	"dependencies": {
+		"https://github.com/embarcadero/python4delphi": "^1.1",
+		"https://github.com/embarcadero/pythonenviroments": "^v0.0.1-alpha"
+	}
+}
