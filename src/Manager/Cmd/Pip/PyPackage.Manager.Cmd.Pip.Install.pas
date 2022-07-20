@@ -267,7 +267,9 @@ end;
 function TPyPackageManagerCmdPipInstall.MakeInstallProgressBarCmd: TArray<string>;
 begin
   if FOpts.ProgressBar then
-    Result := TArray<string>.Create('--progress-bar');
+    Result := TArray<string>.Create('--progress-bar', 'on')
+  else
+    Result := TArray<string>.Create('--progress-bar', 'off');
 end;
 
 function TPyPackageManagerCmdPipInstall.MakeIntallPythonImplementationCmd: TArray<string>;
