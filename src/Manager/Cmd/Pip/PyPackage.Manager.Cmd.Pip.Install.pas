@@ -73,6 +73,7 @@ type
     function MakeInstallNoBinaryCmd: TArray<string>; inline;
     function MakeInstallOnlyBinaryCmd: TArray<string>; inline;
     function MakeInstallVerboseCmd: TArray<string>; inline;
+    function MakeInstallReportCmd: TArray<string>; inline;
     function MakeInstallPreferBinaryCmd: TArray<string>; inline;
     function MakeInstallRequireHashesCmd: TArray<string>; inline;
     function MakeInstallProgressBarCmd: TArray<string>; inline;
@@ -251,6 +252,12 @@ function TPyPackageManagerCmdPipInstall.MakeInstallPlatformCmd: TArray<string>;
 begin
   if not FOpts.Platform.IsEmpty() then
     Result := TArray<string>.Create('--platform ', FOpts.Platform);
+end;
+
+function TPyPackageManagerCmdPipInstall.MakeInstallReportCmd: TArray<string>;
+begin
+  if not FOpts.Report.IsEmpty() then
+    Result := TArray<string>.Create('--report ', FOpts.Report);
 end;
 
 function TPyPackageManagerCmdPipInstall.MakeInstallPreCmd: TArray<string>;
