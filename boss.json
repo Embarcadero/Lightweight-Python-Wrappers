@@ -5,8 +5,8 @@
 	"homepage": "https://github.com/Embarcadero/Lightweight-Python-Wrappers",
 	"mainsrc": "./src",
 	"projects": [
-		"./packages/P4DPyPackage",
-		"./packages/dclP4DPyPackage"
+		"./packages/P4DPyPackage.dproj",
+		"./packages/dclP4DPyPackage.dproj"
 	],
 	"dependencies": {
 		"https://github.com/embarcadero/pythonenviroments": "^v0.0.1-alpha"
