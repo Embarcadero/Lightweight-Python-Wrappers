@@ -35,7 +35,9 @@ interface
 uses
   PyTools.ExecCmd,
   PyTools.ExecCmd.Args,
-  PyCore, PyPackage,
+  PyTools.Cancelation,
+  PyCore,
+  PyPackage,
   PyPackage.Manager,
   PyPackage.Manager.Intf,
   PyPackage.Manager.Defs,
@@ -47,16 +49,14 @@ type
   private
     FDefs: TPyPackageManagerDefs;
     FCmd: IPyPackageManagerCmdIntf;
-    //Utils
-    function FormatCmdError(const AExec: IExecCmd; const AOutput: string): string;
     //Builders
     function BuildOptsList(): TPyPackageManagerDefsOptsPipList;
     //IPyPackageManager implementation
     function GetDefs(): TPyPackageManagerDefs;
     function GetCmd(): IPyPackageManagerCmdIntf;
-    function IsInstalled(out AInstalled: boolean; out AOutput: string): boolean;
-    function Install(out AOutput: string): boolean;
-    function Uninstall(out AOutput: string): boolean;
+    function IsInstalled(): boolean;
+    procedure Install(const ACancelation: ICancelation);
+    procedure Uninstall(const ACancelation: ICancelation);
   public
     constructor Create(const APackageName: TPyPackageName); override;
     destructor Destroy; override;
@@ -67,9 +67,10 @@ implementation
 uses
   System.Variants, System.SysUtils, System.IOUtils, System.Generics.Collections,
   PythonEngine,
-  PyUtils, PyExceptions,
+  PyUtils,
+  PyExceptions,
   PyPackage.Manager.Defs.Pip,
-  PyPackage.Manager.Cmd.Pip;
+  PyPackage.Manager.Cmd.Pip, System.SyncObjs;
 
 { TPyPackageManagerPip }
 
@@ -85,12 +86,6 @@ begin
   FCmd := nil;
   FDefs.Free();
   inherited;
-end;
-
-function TPyPackageManagerPip.FormatCmdError(const AExec: IExecCmd;
-  const AOutput: string): string;
-begin
-  Result := Format('Command error: %d - %s', [AExec.ExitCode, AOutput]);
 end;
 
 function TPyPackageManagerPip.GetCmd: IPyPackageManagerCmdIntf;
@@ -116,7 +111,7 @@ begin
   end;
 end;
 
-function TPyPackageManagerPip.IsInstalled(out AInstalled: boolean; out AOutput: string): boolean;
+function TPyPackageManagerPip.IsInstalled(): boolean;
 var
   LOpts: TPyPackageManagerDefsOptsPipList;
   LExec: IExecCmd;
@@ -124,28 +119,27 @@ begin
   LOpts := BuildOptsList();
   try
     LExec := TExecCmdService
-              .Cmd(GetPythonEngine().ProgramName,
-                TExecCmdArgs.BuildArgv(
-                  GetPythonEngine().ProgramName,
-                  ['-m', 'pip'] + FCmd.BuildListCmd(LOpts)),
-                TExecCmdArgs.BuildEnvp(
-                  GetPythonEngine().PythonHome,
-                  GetPythonEngine().ProgramName,
-                  TPath.Combine(GetPythonEngine().DllPath, GetPythonEngine().DllName)))
-              .Run(AOutput);
-                
-    Result := (LExec.Wait() = EXIT_SUCCESS);            
-    if Result then begin
-      AInstalled := AOutput.Contains(FDefs.PackageName);
-    end else 
-      AInstalled := false;
-      AOutput := FormatCmdError(LExec, AOutput);
+      .Cmd(GetPythonEngine().ProgramName,
+        TExecCmdArgs.BuildArgv(
+          GetPythonEngine().ProgramName,
+          ['-m', 'pip'] + FCmd.BuildListCmd(LOpts)),
+        TExecCmdArgs.BuildEnvp(
+          GetPythonEngine().PythonHome,
+          GetPythonEngine().ProgramName,
+          TPath.Combine(GetPythonEngine().DllPath, GetPythonEngine().DllName)))
+      .Run([TRedirect.stdout, TRedirect.stderr]);
+
+    if (LExec.Wait() <> EXIT_SUCCESS) then
+      raise EPipExecCmdFailed.Create(
+        Format('Pip comamnd has failed. %s', [LExec.StdErr.ReadAll().Trim()]), LExec.ExitCode);
+
+    Result := LExec.StdOut.ReadAll().Contains(FDefs.PackageName);
   finally
     LOpts.Free();
   end;
 end;
 
-function TPyPackageManagerPip.Install(out AOutput: string): boolean;
+procedure TPyPackageManagerPip.Install(const ACancelation: ICancelation);
 var
   LIn: TArray<string>;
   LExec: IExecCmd;
@@ -154,22 +148,28 @@ begin
     + FCmd.BuildInstallCmd((FDefs as TPyPackageManagerDefsPip).InstallOptions);
 
   LExec := TExecCmdService
-             .Cmd(GetPythonEngine().ProgramName,
-               TExecCmdArgs.BuildArgv(
-                 GetPythonEngine().ProgramName,
-                 LIn),
-               TExecCmdArgs.BuildEnvp(
-                 GetPythonEngine().PythonHome,
-                 GetPythonEngine().ProgramName,
-                 TPath.Combine(GetPythonEngine().DllPath, GetPythonEngine().DllName)))
-             .Run(AOutput);
-      
-  Result := (LExec.Wait() = EXIT_SUCCESS);
-  if not Result then
-    AOutput := FormatCmdError(LExec, AOutput);
+    .Cmd(GetPythonEngine().ProgramName,
+      TExecCmdArgs.BuildArgv(
+        GetPythonEngine().ProgramName,
+        LIn),
+      TExecCmdArgs.BuildEnvp(
+        GetPythonEngine().PythonHome,
+        GetPythonEngine().ProgramName,
+        TPath.Combine(GetPythonEngine().DllPath, GetPythonEngine().DllName)))
+    .Run([TRedirect.stderr]);
+
+  TSpinWait.SpinUntil(function(): boolean begin
+    Result := not LExec.IsAlive or ACancelation.IsCancelled;
+  end);
+
+  ACancelation.CheckCancelled();
+
+  if (LExec.Wait() <> EXIT_SUCCESS) then
+    raise EPipExecCmdFailed.Create(
+      Format('Pip command has failed. %s', [LExec.StdErr.ReadAll().Trim()]), LExec.ExitCode);
 end;
 
-function TPyPackageManagerPip.Uninstall(out AOutput: string): boolean;
+procedure TPyPackageManagerPip.Uninstall(const ACancelation: ICancelation);
 var
   LIn: TArray<string>;
   LExec: IExecCmd;
@@ -178,19 +178,25 @@ begin
     + FCmd.BuildInstallCmd((FDefs as TPyPackageManagerDefsPip).UninstallOptions);
 
   LExec := TExecCmdService
-             .Cmd(GetPythonEngine().ProgramName,
-               TExecCmdArgs.BuildArgv(
-                 GetPythonEngine().ProgramName,
-                 LIn),
-               TExecCmdArgs.BuildEnvp(
-                 GetPythonEngine().PythonHome,
-                 GetPythonEngine().ProgramName,
-                 TPath.Combine(GetPythonEngine().DllPath, GetPythonEngine().DllName)))
-             .Run(AOutput);
-      
-  Result := (LExec.Wait() = EXIT_SUCCESS);
-  if not Result then
-    AOutput := FormatCmdError(LExec, AOutput);
+    .Cmd(GetPythonEngine().ProgramName,
+      TExecCmdArgs.BuildArgv(
+        GetPythonEngine().ProgramName,
+        LIn),
+      TExecCmdArgs.BuildEnvp(
+        GetPythonEngine().PythonHome,
+        GetPythonEngine().ProgramName,
+        TPath.Combine(GetPythonEngine().DllPath, GetPythonEngine().DllName)))
+    .Run([TRedirect.stderr]);
+
+  TSpinWait.SpinUntil(function(): boolean begin
+    Result := not LExec.IsAlive or ACancelation.IsCancelled;
+  end);
+
+  ACancelation.CheckCancelled();
+
+  if (LExec.Wait() <> EXIT_SUCCESS) then
+    raise EPipExecCmdFailed.Create(
+      Format('Pip command has failed. %s', [LExec.StdErr.ReadAll().Trim()]), LExec.ExitCode);
 end;
 
 end.

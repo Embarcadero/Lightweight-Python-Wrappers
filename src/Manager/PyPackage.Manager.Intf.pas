@@ -33,6 +33,7 @@ unit PyPackage.Manager.Intf;
 interface
 
 uses
+  PyTools.Cancelation,
   PyPackage.Manager.Defs,
   PyPackage.Manager.Cmd.Intf;
 
@@ -45,9 +46,10 @@ type
     property Defs: TPyPackageManagerDefs read GetDefs;
     property Cmd: IPyPackageManagerCmdIntf read GetCmd;
 
-    function Install(out AOutput: string): boolean;
-    function Uninstall(out AOutput: string): boolean;
-    function IsInstalled(out AInstalled: boolean; out AOutput: string): boolean;
+    procedure Install(const ACancelation: ICancelation);
+    procedure Uninstall(const ACancelation: ICancelation);
+
+    function IsInstalled(): boolean;
   end;
 
 implementation
