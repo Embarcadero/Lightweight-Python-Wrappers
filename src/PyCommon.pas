@@ -34,7 +34,6 @@ interface
 uses
   System.Classes,
   PyEnvironment,
-  PyEnvironment.Notification,
   PythonEngine;
 
 type
@@ -43,13 +42,14 @@ type
   private
     FPythonEngine: TPythonEngine;
     FPyEnvironment: TPyEnvironment;
-    procedure SetPyEnvironment(const APyEnvironment: TPyEnvironment);
-    procedure SetPythonEngine(const APythonEngine: TPythonEngine);
   protected
     procedure Notification(AComponent: TComponent; AOperation: TOperation); override;
-    procedure EngineLoaded(); virtual;
+    procedure SetPyEnvironment(const APyEnvironment: TPyEnvironment); virtual;
+    procedure SetPythonEngine(const APythonEngine: TPythonEngine); virtual;
     function IsReady(): boolean; virtual;
   public
+    destructor Destroy(); override;
+
     property PyEnvironment: TPyEnvironment read FPyEnvironment write SetPyEnvironment;
     property PythonEngine: TPythonEngine read FPythonEngine write SetPythonEngine;
   end;
@@ -71,9 +71,11 @@ implementation
 
 { TPyCommon }
 
-procedure TPyCommon.EngineLoaded;
+destructor TPyCommon.Destroy;
 begin
-  //
+  SetPyEnvironment(nil);
+  SetPythonEngine(nil);
+  inherited;
 end;
 
 function TPyCommon.IsReady: boolean;
@@ -86,8 +88,11 @@ procedure TPyCommon.Notification(AComponent: TComponent;
   AOperation: TOperation);
 begin
   inherited;
-  if (AOperation = opRemove) and (AComponent = FPythonEngine) then begin
-    FPythonEngine := nil;
+  if (AOperation = opRemove) then begin
+    if (AComponent = FPythonEngine) then
+      FPythonEngine := nil
+    else if (AComponent = FPyEnvironment) then
+      FPyEnvironment := nil;
   end;
 end;
 
@@ -100,8 +105,9 @@ begin
     FPyEnvironment := APyEnvironment;
     if Assigned(FPyEnvironment) then begin
       FPyEnvironment.FreeNotification(Self);
-      if Assigned(FPyEnvironment.PythonEngine) then
-        SetPythonEngine(FPyEnvironment.PythonEngine);
+      if (csDesigning in ComponentState) then
+        if Assigned(FPyEnvironment.PythonEngine) then
+          SetPythonEngine(FPyEnvironment.PythonEngine);
     end;
   end;
 end;
@@ -112,10 +118,8 @@ begin
     if Assigned(FPythonEngine) then
       FPythonEngine.RemoveFreeNotification(Self);
     FPythonEngine := APythonEngine;
-    if Assigned(FPythonEngine) then begin
+    if Assigned(FPythonEngine) then
       FPythonEngine.FreeNotification(Self);
-      EngineLoaded();
-    end;
   end;
 end;
 

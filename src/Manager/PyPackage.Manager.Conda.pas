@@ -33,6 +33,7 @@ unit PyPackage.Manager.Conda;
 interface
 
 uses
+  PyTools.Cancelation,
   PyCore,
   PyPackage.Manager,
   PyPackage.Manager.Intf,
@@ -50,9 +51,11 @@ type
     //IPyPackageManager implementation
     function GetDefs(): TPyPackageManagerDefs;
     function GetCmd(): IPyPackageManagerCmdIntf;
-    function IsInstalled(out AInstalled: boolean; out AOutput: string): boolean; reintroduce;
-    function Install(out AOutput: string): boolean;
-    function Uninstall(out AOutput: string): boolean;
+
+    procedure Install(const ACancelation: ICancelation);
+    procedure Uninstall(const ACancelation: ICancelation);
+
+    function IsInstalled(): boolean;
   public
     constructor Create(const APackageName: TPyPackageName); override;
     destructor Destroy; override;
@@ -63,7 +66,8 @@ implementation
 uses
   System.Variants, System.SysUtils,
   PythonEngine, VarPyth,
-  PyUtils, PyExceptions,
+  PyUtils,
+  PyExceptions,
   PyPackage.Manager.Defs.Conda,
   PyPackage.Manager.Cmd.Conda;
 
@@ -107,38 +111,52 @@ begin
   Result := FDefs;
 end;
 
-function TPyPackageManagerConda.IsInstalled(out AInstalled: boolean; out AOutput: string): boolean;
+function TPyPackageManagerConda.IsInstalled(): boolean;
+var
+  LIn: TArray<string>;
+  LConda: variant;
+  LResult: Integer;
 begin
   //Will be changed to run on a separeted process
   var LOpts := BuildOptsList();
   try
-    var LIn := FCmd.BuildListCmd(LOpts);
-    var LConda := Import('conda.cli');
-    var LResult := LConda.main('conda', TPyEx.List<String>(LIn), FDefs.PackageName);
+    LIn := FCmd.BuildListCmd(LOpts);
+    LConda := Import('conda.cli');
+    LResult := LConda.main('conda', TPyEx.List<String>(LIn), FDefs.PackageName);
   finally
     LOpts.Free();
   end;
-  Result := false;
+  Result := (LResult = 0);
 end;
 
-function TPyPackageManagerConda.Install(out AOutput: string): boolean;
+procedure TPyPackageManagerConda.Install(const ACancelation: ICancelation);
+var
+  LIn: TArray<string>;
+  LConda: variant;
+  LResult: Integer;
 begin
   //Will be changed to run on a separeted process
-  var LIn := FCmd.BuildInstallCmd((FDefs as TPyPackageManagerDefsConda).InstallOptions);
-  var LConda := Import('conda.cli');
-  var LResult := LConda.main('conda', TPyEx.List<String>(LIn), , FDefs.PackageName);
-  Result := LResult = 0;
-  AOutput := String.Empty;
+  LIn := FCmd.BuildInstallCmd((FDefs as TPyPackageManagerDefsConda).InstallOptions);
+  LConda := Import('conda.cli');
+  LResult := LConda.main('conda', TPyEx.List<String>(LIn), FDefs.PackageName);
+
+  if (LResult <> 0) then
+    raise ECondaExecCmdFailed.Create('Conda command has failed.', LResult);
 end;
 
-function TPyPackageManagerConda.Uninstall(out AOutput: string): boolean;
+procedure TPyPackageManagerConda.Uninstall(const ACancelation: ICancelation);
+var
+  LIn: TArray<string>;
+  LConda: variant;
+  LResult: Integer;
 begin
   //Will be changed to run on a separeted process
-  var LIn := FCmd.BuildUninstallCmd((FDefs as TPyPackageManagerDefsConda).UninstallOptions);
-  var LConda := Import('conda.cli');
-  var LResult := LConda.main('conda', TPyEx.List<String>(LIn), FDefs.PackageName);
-  Result := LResult = 0;
-  AOutput := String.Empty;
+  LIn := FCmd.BuildUninstallCmd((FDefs as TPyPackageManagerDefsConda).UninstallOptions);
+  LConda := Import('conda.cli');
+  LResult := LConda.main('conda', TPyEx.List<String>(LIn), FDefs.PackageName);
+
+  if (LResult <> 0) then
+    raise ECondaExecCmdFailed.Create('Conda command has failed.', LResult);
 end;
 
 end.

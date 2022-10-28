@@ -32,11 +32,15 @@ unit PyPackage;
 interface
 
 uses
-  System.SysUtils, System.Rtti, System.Classes, System.Threading,
+  System.Rtti,
+  System.Types,
+  System.Classes,
+  System.SysUtils,
+  System.Threading,
   System.Generics.Collections,
-  PyCore,
+  PyTools.Cancelation,
   PyEnvironment,
-  PyEnvironment.Notification,
+  PyCore,
   PyCommon,
   PyModule,
   PyPackage.Model,
@@ -100,11 +104,14 @@ type
   end;
 
   //Managed package
-  TOnInstallPackageError = procedure(Sender: TObject; AErrorMessage: string) of object;
-  TOnUninstallpackageError = procedure(Sender: TObject; AErrorMessage: string) of object;
+  TOnInstallPackageError = procedure(Sender: TObject; AException: Exception; var AAbort: boolean) of object;
+  TOnUninstallpackageError = procedure(Sender: TObject; AException: Exception; var AAbort: boolean) of object;
 
-  TPyManagedPackage = class abstract(TPyPackageBase)
+  TPyManagedPackage = class abstract(TPyPackageBase, IPyEnvironmentPlugin)
   private type
+    TPyManagedPackageState = (Installed, NotInstalled, Imported);
+    TPyManagedPackageStates = set of TPyManagedPackageState;
+
     TPyManagers = class(TPersistent)
     private
       FModel: TPyPackageModel;
@@ -123,6 +130,7 @@ type
     FManagerKind: TPyPackageManagerKind;
     FManagers: TPyManagers;
     FAutoInstall: boolean;
+    FState: TPyManagedPackageStates;
     //Events
     FBeforeInstall: TNotifyEvent;
     FOnInstallError: TOnInstallPackageError;
@@ -132,37 +140,43 @@ type
     FAfterUninstall: TNotifyEvent;
     //Getters and Setters
     procedure SetManagers(const Value: TPyManagers);
+    function GetInfo(): TPyPluginInfo;
     //Internal delegations
-    function InternalInstall(out AOutput: string): boolean;
-    function InternalUninstall(out AOutput: string): boolean;
+    procedure InternalInstall(const ACancelation: ICancelation);
+    procedure InternalUninstall(const ACancelation: ICancelation);
     //Throw errors
-    procedure RaiseInstallationError(LOutput: string);
-    procedure RaiseUninstallationError(LOutput: string);
     procedure RaiseNotInstalled;
     //Utils
     function GetPackageManager(const AManagerKind: TPyPackageManagerKind): IPyPackageManager;
     //Event handlers
     procedure DoBeforeInstall;
     procedure DoAfterInstall;
-    procedure DoInstallError(const AOutput: string);
+    procedure DoInstallError();
+    procedure DoBeforeUninstall();
+    procedure DoAfterUninstall();
+    procedure DoUninstallError();
   protected
     procedure DoAutoLoad(); override;
     function GetPyModuleName(): string; override;
+    procedure SetPyEnvironment(const APyEnvironment: TPyEnvironment); override;
+    //IPyEnvironmentPlugin implementation
+    procedure InstallPlugin(const ACancelation: ICancelation);
+    procedure UninstallPlugin(const ACancelation: ICancelation);
+    procedure LoadPlugin(const ACancelation: ICancelation);
+    procedure UnloadPlugin(const ACancelation: ICancelation);
+    function IsInstalled(): boolean; inline;
   protected
     procedure Prepare(const AModel: TPyPackageModel); virtual; abstract;
   protected
     procedure CheckInstalled();
-    procedure InstallPackage(); virtual;
-    procedure UninstallPackage(); virtual;
+    procedure InstallPackage(const ACancelation: ICancelation); virtual;
+    procedure UninstallPackage(const ACancelation: ICancelation); virtual;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy(); override;
     //Setup routines
-    procedure Install();
-    function InstallAsync(): ITask;
-
-    procedure Uninstall();
-    function IsInstalled(): boolean;
+    procedure Install(); overload;
+    procedure Uninstall(); overload;
   published
     property PythonEngine;
     property PyEnvironment;
@@ -307,6 +321,7 @@ end;
 constructor TPyManagedPackage.Create(AOwner: TComponent);
 begin
   inherited;
+  FState := [];
   FAutoInstall := true;
   FModel := TPyPackageModel.Create();
   FManagers := TPyManagers.Create(FModel);
@@ -315,8 +330,8 @@ end;
 
 procedure TPyManagedPackage.DoAutoLoad;
 begin
-  if FAutoInstall then
-    InstallPackage();
+  if not Assigned(PyEnvironment) and FAutoInstall then
+    Install();
   inherited;
 end;
 
@@ -330,6 +345,23 @@ end;
 procedure TPyManagedPackage.SetManagers(const Value: TPyManagers);
 begin
   FManagers.Assign(Value);
+end;
+
+procedure TPyManagedPackage.SetPyEnvironment(
+  const APyEnvironment: TPyEnvironment);
+begin
+  if not (csDesigning in ComponentState) then
+    if (APyEnvironment <> PyEnvironment) then begin
+      if Assigned(PyEnvironment) then begin
+        PyEnvironment.RemovePlugin(Self);
+      end;
+
+      if Assigned(APyEnvironment) then begin
+        APyEnvironment.AddPlugin(Self);
+      end;
+    end;
+
+  inherited;
 end;
 
 function TPyManagedPackage.GetPackageManager(
@@ -348,57 +380,113 @@ begin
 end;
 
 procedure TPyManagedPackage.Install;
+var
+  LCancelation: ICancelation;
 begin
-  InstallPackage();
+  LCancelation := TCancelation.Create();
+  InstallPackage(LCancelation);
 end;
 
 procedure TPyManagedPackage.Uninstall;
+var
+  LCancelation: ICancelation;
 begin
-  UnInstallPackage();
+  LCancelation := TCancelation.Create();
+  UnInstallPackage(LCancelation);
 end;
 
 function TPyManagedPackage.IsInstalled: boolean;
-var
-  LOutput: string;
 begin
-  if not GetPackageManager(ManagerKind).IsInstalled(Result, LOutput) then
-    raise EPyModuleCheckInstalledError.CreateFmt(
-      'An error ocurred while verifing %s installation.'
-    + #13#10
-    + '%s', [PyModuleName, LOutput]);
-end;
-
-procedure TPyManagedPackage.DoInstallError(const AOutput: string);
-begin
-  if Assigned(FOnInstallError) then
-    if (TThread.CurrentThread.ThreadID <> MainThreadID) then
-      TThread.Synchronize(nil, procedure() begin
-        FOnInstallError(Self, AOutput);
-      end)
+  //Avoid creating subprocess
+  if (TPyManagedPackageState.Installed in FState) then
+    Result := true
+  else if (TPyManagedPackageState.NotInstalled in FState) then
+    Result := false
+  else begin
+    Result := GetPackageManager(ManagerKind).IsInstalled();
+    if Result then
+      Include(FState, TPyManagedPackageState.Installed)
     else
-      FOnInstallError(Self, AOutput);
+      Include(FState, TPyManagedPackageState.NotInstalled);
+  end;
 end;
 
 procedure TPyManagedPackage.DoAfterInstall;
 begin
   if Assigned(FAfterInstall) then
-    if (TThread.CurrentThread.ThreadID <> MainThreadID) then
-      TThread.Synchronize(nil, procedure() begin
-        FAfterInstall(Self);
-      end)
-    else
+    TThread.Synchronize(nil, procedure() begin
       FAfterInstall(Self);
+    end);
 end;
 
 procedure TPyManagedPackage.DoBeforeInstall;
 begin
   if Assigned(FBeforeInstall) then
-    if (TThread.CurrentThread.ThreadID <> MainThreadID) then
-      TThread.Synchronize(nil, procedure() begin
-        FBeforeInstall(Self);
-      end)
-    else
+    TThread.Synchronize(nil, procedure() begin
       FBeforeInstall(Self);
+    end);
+end;
+
+procedure TPyManagedPackage.DoInstallError();
+var
+  LAbort: Boolean;
+  LException: Exception;
+begin
+  if Assigned(FOnInstallError) then begin
+    LAbort := true;
+    LException := Exception(ExceptObject);
+    TThread.Synchronize(nil, procedure() begin
+      FOnInstallError(Self, LException, LAbort);
+    end);
+
+    if LAbort then
+      Abort();
+  end else begin
+    try
+      raise Exception(AcquireExceptionObject()) at ExceptAddr;
+    finally
+      ReleaseExceptionObject();
+    end;
+  end;
+end;
+
+procedure TPyManagedPackage.DoBeforeUninstall;
+begin
+  if Assigned(FBeforeUninstall) then
+    TThread.Synchronize(nil, procedure() begin
+      FBeforeUninstall(Self);
+    end);
+end;
+
+procedure TPyManagedPackage.DoAfterUninstall;
+begin
+  if Assigned(FAfterUninstall) then
+    TThread.Synchronize(nil, procedure() begin
+      FAfterUninstall(Self);
+    end);
+end;
+
+procedure TPyManagedPackage.DoUninstallError;
+var
+  LAbort: Boolean;
+  LException: Exception;
+begin
+  if Assigned(FOnUninstallError) then begin
+    LAbort := true;
+    LException := Exception(ExceptObject);
+    TThread.Synchronize(nil, procedure() begin
+      FOnUnInstallError(Self, LException, LAbort);
+    end);
+
+    if LAbort then
+      Abort();
+  end else begin
+    try
+      raise Exception(AcquireExceptionObject()) at ExceptAddr;
+    finally
+      ReleaseExceptionObject();
+    end;
+  end;
 end;
 
 procedure TPyManagedPackage.RaiseNotInstalled;
@@ -406,83 +494,96 @@ begin
   raise EPyPackageNotInstalled.CreateFmt(ErrPackageNotInstalled, [GetPyModuleName]);
 end;
 
-procedure TPyManagedPackage.RaiseUninstallationError(LOutput: string);
-begin
-  raise EPyModuleUnInstallError.CreateFmt(
-    'An error occurred while uninstalling %s.'
-  + #13#10
-  + '%s', [PyModuleName, LOutput]);
-end;
-
-procedure TPyManagedPackage.RaiseInstallationError(LOutput: string);
-begin
-  raise EPyModuleInstallError.CreateFmt(
-    'An error occurred while installing %s.'
-  + #13#10
-  + '%s', [PyModuleName, LOutput]);
-end;
-
 procedure TPyManagedPackage.CheckInstalled;
 begin
-  if IsReady() then
-    if not IsInstalled() then
-      RaiseNotInstalled();
+  if IsReady() and not IsInstalled() then
+    RaiseNotInstalled();
 end;
 
-function TPyManagedPackage.InternalInstall(out AOutput: string): boolean;
+procedure TPyManagedPackage.InternalInstall(const ACancelation: ICancelation);
 begin
-  Result := GetPackageManager(ManagerKind).Install(AOutput);
+  GetPackageManager(ManagerKind).Install(ACancelation);
 end;
 
-function TPyManagedPackage.InternalUninstall(out AOutput: string): boolean;
+procedure TPyManagedPackage.InternalUninstall(const ACancelation: ICancelation);
 begin
-  Result := GetPackageManager(ManagerKind).Uninstall(AOutput);
+  GetPackageManager(ManagerKind).Uninstall(ACancelation);
 end;
 
-function TPyManagedPackage.InstallAsync: ITask;
+procedure TPyManagedPackage.InstallPackage(const ACancelation: ICancelation);
 begin
-  Result := TTask.Run(procedure() begin
-    InstallPackage();
-  end);
-end;
-
-procedure TPyManagedPackage.InstallPackage;
-var
-  LOutput: string;
-begin
-  if IsReady() then
-    if not IsInstalled() then begin
-      DoBeforeInstall;
-
-      if InternalInstall(LOutput) then begin
-        DoAfterInstall;
-      end else
-      if Assigned(FOnInstallError) then
-        DoInstallError(LOutput)
+  if IsReady() and not IsInstalled() then begin
+    DoBeforeInstall();
+    try
+      InternalInstall(ACancelation);
+      Exclude(FState, TPyManagedPackageState.NotInstalled);
+      Include(FState, TPyManagedPackageState.Installed);
+      DoAfterInstall();
+    except
+      on E: EAbort do
+        raise
       else
-        RaiseInstallationError(LOutput);
+        DoInstallError();
     end;
+  end;
 end;
 
-procedure TPyManagedPackage.UninstallPackage;
-var
-  LOutput: string;
+procedure TPyManagedPackage.UninstallPackage(const ACancelation: ICancelation);
 begin
   if IsReady() then
     if IsInstalled() then begin
-      if Assigned(FBeforeUninstall) then
-        FBeforeUninstall(Self);
-
-      if not InternalUninstall(LOutput) then
-        if Assigned(FOnUninstallError) then
-          FOnUninstallError(Self, LOutput)
+      DoBeforeUninstall();
+      try
+        InternalUninstall(ACancelation);
+        Exclude(FState, TPyManagedPackageState.Installed);
+        Include(FState, TPyManagedPackageState.NotInstalled);
+        DoAfterUninstall();
+      except
+        on E: EAbort do
+          raise
         else
-          RaiseUninstallationError(LOutput);
-
-      if Assigned(FAfterUninstall) then
-        FAfterUninstall(Self);
+          DoUninstallError();
+      end;
     end else
       RaiseNotInstalled();
+end;
+
+function TPyManagedPackage.GetInfo: TPyPluginInfo;
+begin
+  Result.Name := PyModuleName;
+  Result.Description := Format('Python module "%s" for Delphi.', [PyModuleName]);
+  Result.InstallsWhen := [TPyPluginEvent.AfterActivate];
+  Result.LoadsWhen := [TPyPluginEvent.AfterActivate];
+end;
+
+procedure TPyManagedPackage.InstallPlugin(const ACancelation: ICancelation);
+begin
+  Assert(Assigned(ACancelation), 'Invalid argument "ACancelation".');
+
+  if AutoInstall then
+    InstallPackage(ACancelation);
+end;
+
+procedure TPyManagedPackage.UninstallPlugin(const ACancelation: ICancelation);
+begin
+  Assert(Assigned(ACancelation), 'Invalid argument "ACancelation".');
+
+  UninstallPackage(ACancelation);
+end;
+
+procedure TPyManagedPackage.LoadPlugin(const ACancelation: ICancelation);
+begin
+  Assert(Assigned(ACancelation), 'Invalid argument "ACancelation".');
+
+  if AutoImport and CanImport() then
+    TThread.Synchronize(nil, procedure() begin
+      Import();
+    end);
+end;
+
+procedure TPyManagedPackage.UnloadPlugin(const ACancelation: ICancelation);
+begin
+  Assert(Assigned(ACancelation), 'Invalid argument "ACancelation".');
 end;
 
 { TPyManagedPackage.TPyManagers }
@@ -496,14 +597,16 @@ function TPyManagedPackage.TPyManagers.GetConda: TPyPackageManagerDefs;
 begin
   if FModel.PackageManagers.ContainsKey(TPyPackageManagerKind.conda) then
     Result := FModel.PackageManagers.Items[TPyPackageManagerKind.conda].Defs
-  else Result := nil;
+  else
+    Result := nil;
 end;
 
 function TPyManagedPackage.TPyManagers.GetPip: TPyPackageManagerDefs;
 begin
   if FModel.PackageManagers.ContainsKey(TPyPackageManagerKind.pip) then
     Result := FModel.PackageManagers.Items[TPyPackageManagerKind.pip].Defs
-  else Result := nil;
+  else
+    Result := nil;
 end;
 
 procedure TPyManagedPackage.TPyManagers.SetConda(

@@ -32,7 +32,8 @@ unit PyExceptions;
 interface
 
 uses
-  System.SysUtils;
+  System.SysUtils,
+  PyTools.Exception;
 
 type
   EPyCommonException = class(Exception);
@@ -42,8 +43,6 @@ type
   EManagerUnavailable = class(EPyCommonException);
 
   EPyPackageNotInstalled = class(EPyCommonException);
-
-  EPyModuleCheckInstalledError = class(EPyCommonException);
 
   EPyModuleInstallError = class(EPyCommonException);
 
@@ -58,6 +57,10 @@ type
   EPyVarException = class(EPyCommonException);
 
   EPyVarIsNotPython = class(EPyVarException);
+
+  EPipExecCmdFailed = class(EExecCmdFailed);
+
+  ECondaExecCmdFailed = class(EExecCmdFailed);
 
 resourcestring
   ErrPackageNotInstalled = 'Package %s not installed.';
