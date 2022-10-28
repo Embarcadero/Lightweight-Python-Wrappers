@@ -32,8 +32,14 @@ unit PyModule;
 interface
 
 uses
-  System.Classes, System.Generics.Collections, System.SysUtils, System.Rtti,
-  PythonEngine, PyCommon, PyCore;
+  System.Classes,
+  System.Generics.Collections,
+  System.SysUtils,
+  System.Rtti,
+  PythonEngine,
+  PyCommon,
+  PyCore,
+  PyEnvironment;
 
 type
   TPyModuleBase = class(TPyCommonCustomModule)
@@ -50,7 +56,6 @@ type
     //Desing-time actions
     procedure DoAutoLoad(); virtual;
     //Module routines
-    procedure EngineLoaded(); override;
     function CanImport(): boolean;
     procedure ImportModule(); reintroduce; virtual;
     procedure CheckImported();
@@ -105,13 +110,6 @@ begin
   inherited;
 end;
 
-procedure TPyModuleBase.EngineLoaded;
-begin
-  inherited;
-  if FAutoImport and CanImport() then
-    Import();
-end;
-
 function TPyModuleBase.GetPyParent: TPyModuleBase;
 begin
   Result := nil;
@@ -164,7 +162,8 @@ end;
 procedure TPyModuleBase.Loaded;
 begin
   inherited;
-  DoAutoLoad();
+  if not Assigned(PyEnvironment) then
+    DoAutoLoad();
 end;
 
 end.
