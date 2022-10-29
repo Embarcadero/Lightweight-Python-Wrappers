@@ -330,8 +330,9 @@ end;
 
 procedure TPyManagedPackage.DoAutoLoad;
 begin
-  if not Assigned(PyEnvironment) and FAutoInstall then
-    Install();
+  if not (csDesigning in ComponentState) and not Assigned(PyEnvironment)
+    and FAutoInstall then
+      Install();
   inherited;
 end;
 

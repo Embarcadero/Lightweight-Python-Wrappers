@@ -101,7 +101,7 @@ end;
 
 procedure TPyModuleBase.DoAutoLoad;
 begin
-  if FAutoImport and CanImport() then
+  if not (csDesigning in ComponentState) and FAutoImport and CanImport() then
     Import();
 end;
 
