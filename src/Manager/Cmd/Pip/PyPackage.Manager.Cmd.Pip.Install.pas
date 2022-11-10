@@ -72,6 +72,8 @@ type
     function MakeInstallNoWarnConflictsCmd: TArray<string>; inline;
     function MakeInstallNoBinaryCmd: TArray<string>; inline;
     function MakeInstallOnlyBinaryCmd: TArray<string>; inline;
+    function MakeInstallVerboseCmd: TArray<string>; inline;
+    function MakeInstallReportCmd: TArray<string>; inline;
     function MakeInstallPreferBinaryCmd: TArray<string>; inline;
     function MakeInstallRequireHashesCmd: TArray<string>; inline;
     function MakeInstallProgressBarCmd: TArray<string>; inline;
@@ -236,14 +238,26 @@ end;
 
 function TPyPackageManagerCmdPipInstall.MakeInstallOnlyBinaryCmd: TArray<string>;
 begin
-  if FOpts.OnlyBinary then
-    Result := TArray<string>.Create('--only-binary');
+  if not FOpts.OnlyBinary.IsEmpty() then
+    Result := TArray<string>.Create('--only-binary', FOpts.OnlyBinary);
+end;
+
+function TPyPackageManagerCmdPipInstall.MakeInstallVerboseCmd: TArray<string>;
+begin
+  if FOpts.Verbose then
+    Result := TArray<string>.Create('-v');
 end;
 
 function TPyPackageManagerCmdPipInstall.MakeInstallPlatformCmd: TArray<string>;
 begin
   if not FOpts.Platform.IsEmpty() then
     Result := TArray<string>.Create('--platform ', FOpts.Platform);
+end;
+
+function TPyPackageManagerCmdPipInstall.MakeInstallReportCmd: TArray<string>;
+begin
+  if not FOpts.Report.IsEmpty() then
+    Result := TArray<string>.Create('--report ', FOpts.Report);
 end;
 
 function TPyPackageManagerCmdPipInstall.MakeInstallPreCmd: TArray<string>;
