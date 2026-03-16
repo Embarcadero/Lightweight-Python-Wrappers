@@ -67,7 +67,9 @@ type
     FNoWarnConflicts: boolean;
     FNoBinary: boolean;
     FNoCompile: boolean;
-    FOnlyBinary: boolean;
+    FVerbose: boolean;
+	FReport: String;
+    FOnlyBinary: String;
     FPreferBinary: boolean;
     FRequireHashes: boolean;
     FProgressBar: boolean;
@@ -110,7 +112,9 @@ type
     property NoWarnScriptLocation: boolean read FNoWarnScriptLocation write FNoWarnScriptLocation default false;
     property NoWarnConflicts: boolean read FNoWarnConflicts write FNoWarnConflicts default false;
     property NoBinary: boolean read FNoBinary write FNoBinary default false;
-    property OnlyBinary: boolean read FOnlyBinary write FOnlyBinary default false;
+    property Verbose: boolean read FVerbose write FVerbose default false;
+    property OnlyBinary: String read FOnlyBinary write FOnlyBinary;
+    property Report: String read FReport write FReport;
     property PreferBinary: boolean read FPreferBinary write FPreferBinary default false;
     property RequireHashes: boolean read FRequireHashes write FRequireHashes default false;
     property ProgressBar: boolean read FProgressBar write FProgressBar default false;
